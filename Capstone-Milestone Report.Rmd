@@ -1,0 +1,197 @@
+---
+title: "Capstone Project - Milestone Report"
+author: "Dooratharsini Paskaran"
+date: '2022-05-27'
+output: html_document
+---
+
+##Data Science Capstone - Peer-graded Assignment: Milestone Report (Week2)
+
+#This document explains the major features of the data  identified and briefly summarized plans for creating the prediction algorithmand Shiny app.
+#Illustrated important summaries of the data set with tables and plots.
+
+#Initially, demonstrated about downloading the data and have successfully loaded it in
+#Next, created a basic report of summary statistics about the data sets
+#Then, reported findings and summarize the plans for creating a prediction algorithm and Shiny app. 
+
+
+# Install Required R Packages
+```{r eval=FALSE}
+install.packages("Rtools",lib="C:/Program Files/R/R-4.2.0/library")
+install.packages("tm",lib="C:/Program Files/R/R-4.2.0/library")  # for text mining
+install.packages("SnowballC",lib="C:/Program Files/R/R-4.2.0/library") # for text stemming
+install.packages("wordcloud",lib="C:/Program Files/R/R-4.2.0/library") # word-cloud generator
+install.packages("RColorBrewer",lib="C:/Program Files/R/R-4.2.0/library") # color palettes
+install.packages("syuzhet",lib="C:/Program Files/R/R-4.2.0/library") # for sentiment analysis
+install.packages("ggplot2",lib="C:/Program Files/R/R-4.2.0/library") # for plotting graphs
+install.packages("Rcpp",lib="C:/Program Files/R/R-4.2.0/library")
+install.packages("stringi",lib="C:/Program Files/R/R-4.2.0/library")
+install.packages("quanteda",lib="C:/Program Files/R/R-4.2.0/library") #compute n-grams to find commonly occuring sequence of words
+```
+
+# Load the required  libraries
+```{r}
+library("tm")
+library("SnowballC")
+library("wordcloud")
+library("RColorBrewer")
+library("syuzhet")
+library("ggplot2")
+library("Rcpp")
+library("stringi")
+library("quanteda")
+```
+
+#Downloaded data set from coursera site to local machine.
+# Read the text file from local machine
+```{r}
+blogs <- readLines("C:/MyFolders/Coursera/Capstone Project/final/en_US/en_US.blogs.txt",encoding = "UTF-8", skipNul = TRUE)
+news <- readLines("C:/MyFolders/Coursera/Capstone Project/final/en_US/en_US.news.txt",encoding = "UTF-8", skipNul = TRUE, warn = FALSE)
+twitter <- readLines("C:/MyFolders/Coursera/Capstone Project/final/en_US/en_US.twitter.txt",encoding = "UTF-8", skipNul = TRUE)
+```
+
+#Read file paths to downloaded files
+```{r}
+blogFilePath <- file.size("C:/MyFolders/Coursera/Capstone Project/final/en_US/en_US.blogs.txt")
+newsFilePath <- file.size("C:/MyFolders/Coursera/Capstone Project/final/en_US/en_US.news.txt")
+twitterFilePath <- file.size("C:/MyFolders/Coursera/Capstone Project/final/en_US/en_US.twitter.txt")
+```
+
+#Basic Summary of The Data set
+```{r}
+m <- matrix(c(NROW(blogs),NROW(news),NROW(twitter),sum(nchar(blogs)),sum(nchar(news)),sum(nchar(twitter)),(blogFilePath/1024^2),(newsFilePath/1024^2),(twitterFilePath/1024^2)),byrow = FALSE,nrow=3,ncol=3,dimnames = list(c("blogs","news","twitter"),c("No.Of Lines","No. Of Characters","File Size in Mb")))
+Wordcount <- sapply(list(blogs,news,twitter),stri_stats_latex)['Words',]
+BasicSummary <- cbind(m,Wordcount)
+BasicSummary
+```
+
+
+#Sampling
+#As the table above shows, the amount of data in this set is huge. that will need a lot of computation power. 
+#Therefore we limit the data to operate with less data, trim the dataset to make it a training dataset.
+
+```{r}
+sampleBlogs <- blogs[rbinom(length(blogs)*.01, length(blogs), .5)]
+sampleNews <- news[rbinom(length(news)*.01, length(news), .5)]
+sampleTwitter <- twitter[rbinom(length(twitter)*.01, length(twitter), .5)]
+
+SampleBasicSummary <- matrix(c(NROW(sampleBlogs),NROW(sampleNews),NROW(sampleTwitter)),byrow = TRUE,
+                             nrow=3,ncol=1,
+                             dimnames = list(c("blogsSample","newsSample","twitterSample"),"No.Of Rows"))
+SampleBasicSummary
+```
+
+
+#Merging The Sample Files and creating Training Data Set 
+```{r}
+set.seed(1234)
+trainingDataSet <- c(sampleBlogs,sampleNews,sampleTwitter)
+```
+
+#Creating The Corpus
+```{r}
+set.seed(1234)
+TrainingDataCorpus <- Corpus(VectorSource(trainingDataSet), readerControl = list(reader=readPlain,language="en"))
+```
+
+#Pre-Processing
+##Pre-processing is performed using tm_map() function to replace or remove special characters from the text, stop common english  words,
+##remove punctuation and extra white space. Additionally performed text stemming.
+
+#Replacing "/", "@" and "|" with space
+```{r}
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, toSpace, "/")
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, toSpace, "@")
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, toSpace, "\\|")
+# Convert the text to lower case
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, content_transformer(tolower))
+# Remove numbers
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, removeNumbers)
+# Remove english common stopwords
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, removeWords, stopwords("english"))
+# Remove your own stop word
+# specify your custom stopwords as a character vector
+#TrainingDataCorpus <- tm_map(TrainingDataCorpus, removeWords)
+# Remove punctuations
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, removePunctuation)
+# Eliminate extra white spaces
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, stripWhitespace)
+# Text stemming - which reduces words to their root form
+TrainingDataCorpus <- tm_map(TrainingDataCorpus, stemDocument)
+```
+
+
+# Build a term-document matrix
+```{r}
+TrainingDataCorpus_dtm <- TermDocumentMatrix(TrainingDataCorpus)
+dtm_m <- Matrix::as.matrix(TrainingDataCorpus_dtm)
+
+# Sort by decreasing value of frequency
+dtm_v <- sort(rowSums(dtm_m),decreasing=TRUE)
+dtm_d <- data.frame(word = names(dtm_v),freq=dtm_v)
+# Display the top 5 most frequent words
+head(dtm_d, 5)
+# Plot the most frequent words (The frequency of the first 15 words are plotted)
+barplot(dtm_d[1:15,]$freq, las = 2, names.arg = dtm_d[1:15,]$word,
+        col ="lightgreen", main ="Top 15 most frequent words",
+        ylab = "Word frequencies")
+```
+#Generate word cloud
+#The importance of words can be illustrated as a word cloud where font size of the word shows its importance.
+```{r}
+set.seed(1234)
+
+wordcloud(words = dtm_d$word, freq = dtm_d$freq, min.freq = 5,
+          max.words=100, random.order=FALSE, rot.per=0.40,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+
+
+#N-grams
+##quanteda::collocations(trainingDataSet, size = 2:3)
+##print(removeFeatures(collocations(trainingDataSet, size = 2:3), stopwords("english")))
+
+
+```{r}
+
+Unigramtokenizer <- function(x)unlist(lapply(ngrams(words(x), 1), paste, collapse = " "), use.names = FALSE)
+Bigramtokenizer <- function(x)unlist(lapply(ngrams(words(x), 2), paste, collapse = " "), use.names = FALSE)
+Trigramtokenizer <-function(x)unlist(lapply(ngrams(words(x), 3), paste, collapse = " "), use.names = FALSE)
+
+unigramdocumentmatrix <- TermDocumentMatrix(TrainingDataCorpus,control = list(tokenize = Unigramtokenizer))
+bigramdocumentmatrix <- TermDocumentMatrix(TrainingDataCorpus,control = list(tokenize = Bigramtokenizer))
+trigramdocumentmatrix <- TermDocumentMatrix(TrainingDataCorpus,control = list(tokenize = Trigramtokenizer))
+
+unigramf <- findFreqTerms(unigramdocumentmatrix,lowfreq =50)
+bigramf <- findFreqTerms(bigramdocumentmatrix,lowfreq = 50)
+trigramf <- findFreqTerms(trigramdocumentmatrix,lowfreq = 50)
+
+Unigramfreq <- sort(rowSums(as.matrix(unigramdocumentmatrix[unigramf,])),decreasing = TRUE)
+Bigramfreq <- sort(rowSums(as.matrix(bigramdocumentmatrix[bigramf,])), decreasing = TRUE)
+Trigramfreq <- sort(rowSums(as.matrix(trigramdocumentmatrix[trigramf,])), decreasing = TRUE)
+
+Unigramfreq <- data.frame(word=names(Unigramfreq[1:30]),frequency=Unigramfreq[1:30])
+Bigramfreq <- data.frame(word=names(Bigramfreq[1:30]),frequency=Bigramfreq[1:30])
+Trigramfreq <- data.frame(word=names(Trigramfreq[1:30]),frequency=Trigramfreq[1:30])
+
+head(Bigramfreq)
+head(Trigramfreq)
+
+
+plot1<- ggplot(data=Trigramfreq, aes(x=word, y=frequency))+geom_bar(fill="black",color="red",stat="identity")+theme(axis.text.x=element_text(angle=90))
+plot1
+```
+
+
+
+
+
+#Plans for creating a prediction algorithm and Shiny app.
+##For this analysis, only 1% 0f lines of text, for each set, were sampled. It would be interesting to get a wider sample for the prediction algorithm (80% training and 20% testing)
+#When satisfied with a more representative and better-cleaned sample data, the algorithm can be implemented and refined (code optimization) as testing along
+#Last step would be implementing the Shiny application
+
+#Next plans
+#I do analyze initially. Next, I will make a predictive algorithm, and using shiny() app, I will check the result which input is coming.

@@ -1,0 +1,55 @@
+---
+title: "Next Word Predictor - Capstone Project"
+author: "Dooratharsini Paskaran"
+date: '2022-06-15'
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION-THE NEXT WORD PREDICTOR-THE SHINEY APPLICATION
+- This is a presentation on a shiny application which predicts next words from a word or a given phrase.
+
+- The app can be accessed here https://doorap.shinyapps.io/Capstone_Next_Word_Predictor/
+
+- This is developed as part of Coursera Data Science specialization program.
+
+## APP DESCRIPTION AND INSTRUCTIONS
+
+- When user types a word or a phrase in the shiny application input text box, the application returns the most frequent words that might follow the input word or phrase.
+
+- The Shiny app is a simple page with an input text box for entering the text.
+
+- When you type word or sentence, the algorithm will show the next predicted word(s).
+
+- The code for the application and related scripts can be found in the project repository.
+
+
+## THE ALGORITHM 
+
+- This application utilizes the N-gram model of natural language processing.
+
+- Created corpus from the sample data of twitter, news and blogs datasets and combined them to create one single dataset.
+
+- Removed punctuation, numbers and separators and eliminate stopwords to apply a stemmer to words.
+
+- Tokenized the data sets into sorted N-grams with cumulative frequencies (1 to 4-grams).
+
+- Created four sets of word combination with their respective frequencies- fourgram, trigram, bigram and unigram respectively.
+
+- Saved as R-Compressed files.
+
+## PREDICTION MODEL
+The prediction model is based on the Stupid backoff algorithm.  
+The backoff factor Alpha is heuristically set to a fixed value 0.4
+
+- Loaded  4 R-Compressed files containing the N-grams
+- Applied same techniques on input given by the user
+- Extracted last 3 or 2 or the last word of input by the user
+- The algorithm matches the last 3 words typed in with fourgram model and calculates their scores.
+- If no match found or returns less than 3 records the app backs off and it matches last two words and searches trigrams and calculate the score
+- If no match found or total less than three records it backs off to bigrams and at last backs off to unigrams
+
+After all the calculations the top ten words that achieve the highest scores are returned
